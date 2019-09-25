@@ -156,36 +156,58 @@ public:
 		return shape;
 	}
 
+	int checkGameover(const char* mine) {
+		bool checkAll = true;
+		for (int i = 0; i < (width + 1) * height; i++) {
+			if (shape[i] == '*')
+				//지뢰가 있으면
+				return 1;
+			if (shape[i] == '+' && mine[i] != '*')
+				checkAll = false;
+		}
+
+		//다 찾았을시
+		if (checkAll == true)
+			return 2;
+
+		//지뢰가 없으면
+		return 0;
+	}
+
 	void draw() {
 		screen.draw(shape, width+1, height, pos);
 	}
 
-	virtual void update(Position& pos, char* mine) {
-		//width * pos.y + pos.x 배열에서 위치
-		if (mine[(width + 1) * pos.y + pos.x] == '*') {
-			shape[(width + 1) * pos.y + pos.x] = mine[(width + 1) * pos.y + pos.x];
-			//게임 오버시키기 그리고 리턴
-		}
-		else if (mine[(width + 1) * pos.y + pos.x] > '0' && mine[(width + 1) * pos.y + pos.x] < '9') {
-			shape[(width + 1) * pos.y + pos.x] = mine[(width + 1) * pos.y + pos.x];
-		}
-		else if (mine[(width + 1) * pos.y + pos.x] == '0') {
-			shape[(width + 1) * pos.y + pos.x] = mine[(width + 1) * pos.y + pos.x];
-			//width*(pos.y-1)+(pos.x-1)   width*(pos.y-1)+pox.x   width*(pos.y-1)+(pox.x+1)  
-			//width * pos.y + (pos.x-1)   width * pos.y + pos.x   width * pos.y + (pos.x+1)
-			//width*(pos.y+1)+(pos.x-1)   width*(pos.y-1)+pos.x   width*(pos.y+1)+(pox.x+1)
-			for (int i = -1; i < 2; i++) {
-				for (int j = -1; j < 2; j++) {
-					if (pos.y + i >= 0 && pos.y + i < height && pos.x + j >= 0 && pos.x + j < width) {
-						Position nextPos(pos.x + j, pos.y + i);
-						if(shape[(width + 1) * nextPos.y + nextPos.x] == '+')
-							update(nextPos, mine);
+	virtual void update(Position& pos, char* mine, bool leftClick) {
+		if (leftClick == true) {
+			//width * pos.y + pos.x 배열에서 위치
+			if (mine[(width + 1) * pos.y + pos.x] == '*') {
+				shape[(width + 1) * pos.y + pos.x] = mine[(width + 1) * pos.y + pos.x];
+			}
+			else if (mine[(width + 1) * pos.y + pos.x] > '0' && mine[(width + 1) * pos.y + pos.x] < '9') {
+				shape[(width + 1) * pos.y + pos.x] = mine[(width + 1) * pos.y + pos.x];
+			}
+			else if (mine[(width + 1) * pos.y + pos.x] == '0') {
+				shape[(width + 1) * pos.y + pos.x] = mine[(width + 1) * pos.y + pos.x];
+				//width*(pos.y-1)+(pos.x-1)   width*(pos.y-1)+pox.x   width*(pos.y-1)+(pox.x+1)  
+				//width * pos.y + (pos.x-1)   width * pos.y + pos.x   width * pos.y + (pos.x+1)
+				//width*(pos.y+1)+(pos.x-1)   width*(pos.y-1)+pos.x   width*(pos.y+1)+(pox.x+1)
+				for (int i = -1; i < 2; i++) {
+					for (int j = -1; j < 2; j++) {
+						if (pos.y + i >= 0 && pos.y + i < height && pos.x + j >= 0 && pos.x + j < width) {
+							Position nextPos(pos.x + j, pos.y + i);
+							if (shape[(width + 1) * nextPos.y + nextPos.x] == '+')
+								update(nextPos, mine, true);
+						}
 					}
 				}
 			}
 		}
 
-		//
+		//깃발
+		if (leftClick == false) {
+			shape[(width + 1) * pos.y + pos.x] = '=';
+		}
 	}
 };
 
@@ -193,20 +215,35 @@ int main()
 {
 	char mine[110];
 	char board[110];
-	GameObject playerBoard(board, 40, 10);
-	GameObject mineBoard(mine, 40, 10);
+	int gameover = 0;
+	GameObject playerBoard(board, 10, 10);
+	GameObject mineBoard(mine, 10, 10);
 	Screen&	 screen = Screen::getInstance();
 	INPUT_RECORD InputRecord;
 	DWORD Events;
 
-	screen.clear(); screen.render();
 	playerBoard.setBoard();
 	mineBoard.setMine();
 
 	while (true)
 	{
 		playerBoard.draw();
-		screen.render();		
+		screen.render();	
+
+		printf("\n LeftClick: check, RightClick: flag");
+		gameover = playerBoard.checkGameover(mineBoard.getShape());
+		if (gameover == 1)
+		{
+			printf("\n===GameOver!===\n");
+			break;
+		}
+
+		else if (gameover == 2)
+		{
+			printf("\n===Clear!===\n");
+			break;
+		}
+
 		Sleep(30);
 		
 		ReadConsoleInput(GetStdHandle(STD_INPUT_HANDLE), &InputRecord, 1, &Events);
@@ -216,7 +253,14 @@ int main()
 				pos.x = InputRecord.Event.MouseEvent.dwMousePosition.X;
 				pos.y = InputRecord.Event.MouseEvent.dwMousePosition.Y;
 
-				playerBoard.update(pos, mineBoard.getShape());
+				playerBoard.update(pos, mineBoard.getShape(), true);
+			}
+			if (InputRecord.Event.MouseEvent.dwButtonState & RIGHTMOST_BUTTON_PRESSED) {
+				Position pos;
+				pos.x = InputRecord.Event.MouseEvent.dwMousePosition.X;
+				pos.y = InputRecord.Event.MouseEvent.dwMousePosition.Y;
+
+				playerBoard.update(pos, mineBoard.getShape(), false);
 			}
 		}
 		screen.clear();
