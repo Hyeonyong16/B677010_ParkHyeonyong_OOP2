@@ -58,6 +58,11 @@ public:
 		strncpy(this->shape, shape, width*height);
 	}
 
+	void initialize() {
+		setPos(7, 0);
+		isMove = true;
+	}
+
 	void setPos(int x, int y) { this->pos.x = x; this->pos.y = y; }
 
 	Position& getPos() { return pos; }
@@ -71,16 +76,14 @@ public:
 		for (auto child : children) child->draw();
 	}
 
-	void internalUpdate() {
-		update();
-		for (auto child : children)
-			child->update();
-	}
-
 	virtual void update()
 	{
+
 	}
 
+	int getWidth() { return width; }
+	int getHeight() { return height; }
+	char* getShape() { return shape; }
 	vector<GameObject *>& getChildren() { return children; }
 };
 
@@ -95,9 +98,11 @@ public:
 		: sprites(sprites), current(0),
 		GameObject(sprites[current].c_str(), w, h, pos) {}
 
+
+
 	void update() {
 		WORD keyCode;
-		if (getPos().y >= Screen::getInstance().getHeight() - 5) {
+		if (getPos().y >= Screen::getInstance().getHeight() - 8) {
 			getIsMove() = false;
 			return;
 		}
@@ -125,7 +130,7 @@ public:
 					break;
 
 				case VK_DOWN:
-					getPos().y = Screen::getInstance().getHeight() - 6;
+					getPos().y = Screen::getInstance().getHeight() - 9;
 					break;
 
 				case 0x41: //'a'
@@ -144,6 +149,37 @@ public:
 	}
 };
 
+class Scene : public GameObject {
+
+public:
+	Scene(char* shape, int w, int h,
+		const Position& pos = Position{ 0,0 })
+		: GameObject(shape, w, h, pos) {}
+
+	void sceneUpdate(GameObject* block) {
+		if (block->getIsMove() == true) return;
+
+		Position temp = block->getPos();
+		int posTemp = temp.y * (getWidth()) + temp.x;
+		char* thisShape = getShape();
+		char* shapeTemp = block->getShape();
+
+		for (int i = 0; i < block->getHeight(); i++)
+			for (int j = 0; j < block->getWidth(); j++) {
+				thisShape[posTemp + j + (getWidth()) * i] = shapeTemp[block->getWidth() * i + j];
+			}
+	}
+
+	void sceneInitialize() {
+		char * shape = getShape();
+		for (int i = 0; i < getHeight(); i++) {
+			for (int j = 0; j < getWidth(); j++) {
+				shape[getWidth() * i + j] = ' ';
+			}
+		}
+	}
+
+};
 int main()
 {
 	//ㄴ자 블럭
@@ -165,8 +201,11 @@ int main()
 	"      \x78\x78\x78"
 	};
 
+	char tetrisScreen[500];
+	Scene tetrisScene{ tetrisScreen, 25, 20, Position{0, 0} };
 	Screen&	 screen = Screen::getInstance();
 	vector<GameObject *> gameObjects;
+	tetrisScene.sceneInitialize();
 
 	srand(time(nullptr));
 
@@ -178,17 +217,42 @@ int main()
 
 	auto parent = new Block{ sprites1, 3,3, Position{7, 0} };		//움직일 블럭
 	auto child = new Block{ sprites2, 3,3, Position{30, 3} };		//다음으로 보여줄 블럭
-
-	parent->add(child);
 	gameObjects.push_back(parent);
+	gameObjects.push_back(child);
 
 	screen.clear(); screen.render();
 
 	while (true)
 	{
 		screen.clear();
-		for (auto obj : gameObjects) obj->internalUpdate();
+		for (auto obj : gameObjects) obj->update();
 
+		if (gameObjects[0]->getIsMove() == false) {
+			tetrisScene.sceneUpdate(gameObjects[0]);
+			gameObjects[0] = gameObjects[1];
+			gameObjects[0]->initialize();
+			gameObjects.pop_back();
+			switch (rand() % 4) {
+			case 0:
+				child = new Block{ sprites1, 3, 3, Position{30, 3} };
+				gameObjects.push_back(child);
+				break;
+			case 1:
+				child = new Block{ sprites2, 3, 3, Position{30, 3} };
+				gameObjects.push_back(child);
+				break;
+			case 2:
+				child = new Block{ sprites3, 3, 3, Position{30, 3} };
+				gameObjects.push_back(child);
+				break;
+			case 3:
+				child = new Block{ sprites4, 3, 3, Position{30, 3} };
+				gameObjects.push_back(child);
+				break;
+			}
+		}
+
+		tetrisScene.draw();
 		for (auto it = gameObjects.cbegin();
 			it != gameObjects.cend(); it++)
 			(*it)->draw();
