@@ -1,4 +1,4 @@
 ﻿  main.cpp
 c:\users\dizzy\onedrive\바탕 화면\github_oop_b677010\b677010_parkhyeonyong_oop2\screen\screen\utils.h(35): warning C4018: '<': signed 또는 unsigned가 일치하지 않습니다.
-c:\users\dizzy\onedrive\바탕 화면\github_oop_b677010\b677010_parkhyeonyong_oop2\screen\screen\main.cpp(210): warning C4244: '인수': 'time_t'에서 'unsigned int'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+c:\users\dizzy\onedrive\바탕 화면\github_oop_b677010\b677010_parkhyeonyong_oop2\screen\screen\main.cpp(222): warning C4244: '인수': 'time_t'에서 'unsigned int'(으)로 변환하면서 데이터가 손실될 수 있습니다.
   Screen.vcxproj -> C:\Users\dizzy\OneDrive\바탕 화면\GitHub_OOP_B677010\B677010_ParkHyeonyong_OOP2\Screen\Debug\Screen.exe

@@ -84,6 +84,7 @@ public:
 	int getWidth() { return width; }
 	int getHeight() { return height; }
 	char* getShape() { return shape; }
+	Screen getScreen() { return screen; }
 	vector<GameObject *>& getChildren() { return children; }
 };
 
@@ -97,8 +98,6 @@ public:
 		const Position& pos = Position{ 0,0 })
 		: sprites(sprites), current(0),
 		GameObject(sprites[current].c_str(), w, h, pos) {}
-
-
 
 	void update() {
 		WORD keyCode;
@@ -144,6 +143,7 @@ public:
 					break;
 				}
 			}
+		
 			getPos().y = getPos().y + 1;
 		}
 	}
@@ -157,17 +157,29 @@ public:
 		: GameObject(shape, w, h, pos) {}
 
 	void sceneUpdate(GameObject* block) {
-		if (block->getIsMove() == true) return;
+		if (block->getIsMove() == true) {
+			for(int i = 0; i < block->getWidth(); i++)
+				for (int j = block->getHeight() - 1; j >= 0; j--) {
+					if (block->getShape()[block->getWidth() * j + i] != ' ') {
+						if (getShape()[getWidth() * (block->getPos().y + j + 1) + (block->getPos().x + i)] != ' ')
+							block->getIsMove() = false;
+					}
+				}
+		}
 
-		Position temp = block->getPos();
-		int posTemp = temp.y * (getWidth()) + temp.x;
-		char* thisShape = getShape();
-		char* shapeTemp = block->getShape();
+		else {
+			Position temp = block->getPos();
+			int posTemp = temp.y * (getWidth()) + temp.x;
+			char* thisShape = getShape();
+			char* shapeTemp = block->getShape();
 
-		for (int i = 0; i < block->getHeight(); i++)
-			for (int j = 0; j < block->getWidth(); j++) {
-				thisShape[posTemp + j + (getWidth()) * i] = shapeTemp[block->getWidth() * i + j];
-			}
+			for (int i = 0; i < block->getHeight(); i++)
+				for (int j = 0; j < block->getWidth(); j++) {
+					if (shapeTemp[block->getWidth() * i + j] != ' ')
+						thisShape[posTemp + j + (getWidth()) * i] = shapeTemp[block->getWidth() * i + j];
+				}
+
+		}
 	}
 
 	void sceneInitialize() {
@@ -227,11 +239,13 @@ int main()
 		screen.clear();
 		for (auto obj : gameObjects) obj->update();
 
+		tetrisScene.sceneUpdate(gameObjects[0]);
 		if (gameObjects[0]->getIsMove() == false) {
 			tetrisScene.sceneUpdate(gameObjects[0]);
 			gameObjects[0] = gameObjects[1];
 			gameObjects[0]->initialize();
 			gameObjects.pop_back();
+
 			switch (rand() % 4) {
 			case 0:
 				child = new Block{ sprites1, 3, 3, Position{30, 3} };

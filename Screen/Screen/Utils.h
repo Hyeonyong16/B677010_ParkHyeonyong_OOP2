@@ -188,6 +188,7 @@ public:
 
 	int getHeight() const { return height;  }
 	int getWidth() const { return width;  }
+	char* getShape() const { return canvas; }
 };
 
 Screen* Screen::instance = nullptr;
