@@ -59,7 +59,7 @@ public:
 	}
 
 	void initialize() {
-		setPos(7, 0);
+		setPos(13, 0);
 		isMove = true;
 	}
 
@@ -101,6 +101,8 @@ public:
 
 	void update() {
 		WORD keyCode;
+		Position temp(0, 0);
+
 		if (getPos().y >= Screen::getInstance().getHeight() - 8) {
 			getIsMove() = false;
 			return;
@@ -114,7 +116,18 @@ public:
 			if (Input::GetKeyEvent(keyCode)) {
 				switch (keyCode) {
 				case VK_RIGHT:
+					for (int i = 0; i < getHeight(); i++) {
+						for (int j = getWidth() - 1; j >= 0; j--) {
+							if (getShape()[i * getWidth() + j] != ' ') {
+								if (getPos().x + j > temp.x) {
+									temp.x = getPos().x + j;
+								}
+							}
+						}
+					}
+					if (temp.x >= 24) break;
 					if (getPos().x >= 24) break;
+
 					getPos().x++;
 					break;
 
@@ -178,7 +191,30 @@ public:
 					if (shapeTemp[block->getWidth() * i + j] != ' ')
 						thisShape[posTemp + j + (getWidth()) * i] = shapeTemp[block->getWidth() * i + j];
 				}
+		}
 
+		for (int i = 0; i < getHeight(); i++) {
+			bool isEmpty = false;
+			int temp = 0;
+			for (int j = 0; j < getWidth(); j++) {
+				if (getShape()[i * getWidth() + j] == ' ') {
+					isEmpty = true;
+				}
+			}
+
+			if (isEmpty == false) {
+				/*for (int j = temp; j > 0; j--) {
+					for (int k = 0; k < getWidth(); k++) {
+						getShape()[j * getWidth() + k] = getShape()[(j - 1)*getWidth() + k];
+					}
+				}*/
+				for (int j = 0; j < getWidth(); j++) {
+					for (int k = i; k > 0; k--) {
+						getShape()[k * getWidth() + j] = getShape()[(k - 1)*getWidth() + j];
+					}
+					getShape()[j] = ' ';
+				}
+			}
 		}
 	}
 
@@ -227,7 +263,7 @@ int main()
 	system(mode.c_str());
 	system("chcp 437");
 
-	auto parent = new Block{ sprites1, 3,3, Position{7, 0} };		//움직일 블럭
+	auto parent = new Block{ sprites1, 3,3, Position{13, 0} };		//움직일 블럭
 	auto child = new Block{ sprites2, 3,3, Position{30, 3} };		//다음으로 보여줄 블럭
 	gameObjects.push_back(parent);
 	gameObjects.push_back(child);
