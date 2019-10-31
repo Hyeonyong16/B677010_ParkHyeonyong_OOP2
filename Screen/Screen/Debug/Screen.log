@@ -1,2 +1,3 @@
 ﻿  main.cpp
-  Screen.vcxproj -> C:\Users\dizzy\OneDrive\바탕 화면\GitHub_OOP_B677010\B677010_ParkHyeonyong_OOP2\Screen\Debug\Screen.exe
+c:\users\dizzy\onedrive\바탕 화면\oop\screen\screen\utils.h(58): warning C4018: '<': signed 또는 unsigned가 일치하지 않습니다.
+  Screen.vcxproj -> C:\Users\dizzy\OneDrive\바탕 화면\OOP\Screen\Debug\Screen.exe

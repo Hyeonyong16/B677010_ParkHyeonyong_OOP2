@@ -2,269 +2,548 @@
 //
 #define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
-#include <stdlib.h>
-#include <time.h>
 #include <conio.h>
 #include <Windows.h>
+#include <time.h>
+#include <stdlib.h>
+#include <array>
+#include <vector>
+#include <string>
+#include <utility>
+#include <algorithm>
 #include "Utils.h"
 
 using namespace std;
 
-class Screen {
-	int width;
-	int height;
-	char* canvas;
-
-	static Screen* instance;
-	Screen(int width = 70, int height = 25) 
-		: width(width), height(height),
-		canvas(new char[(width+1)*height])
-
-	{
-		Borland::initialize();
-	}
-public:
-	static Screen& getInstance() {
-		if (instance == nullptr) {
-			instance = new Screen();
-		}
-		return *instance;
-	}
-
-	~Screen() {
-		if (instance) {
-			delete[] canvas;
-			instance = nullptr;
-		}
-	}
-
-	void draw(const char* shape, int w, int h, const Position& pos)
-	{
-		if (!shape) return;
-		for (int i = 0; i < h; i++)
-		{
-			strncpy(&canvas[pos.x + (pos.y+i)*(/*width+1*/w)], &shape[i*w], w);
-		}
-	}
-
-	void render()
-	{
-		Borland::gotoxy(0, 0);
-		cout << canvas;
-	}
-
-	void clear()
-	{
-		memset(canvas, ' ', (width + 1)*height);
-		canvas[width + (height-1)*(width+1)] = '\0';
-	}
-
-};
-
-Screen* Screen::instance = nullptr;
-
 class GameObject {
-	char* shape;
-	int width;
-	int height;
-	Position pos;
-	Screen& screen;
+	bool		enabled;
+
+protected:
+
+	Position	pos;
+	Screen&		screen;
+	char*		shape;
+	int			width;
+	int			height;
+
+	vector<GameObject *> children;
+	GameObject*	parent;
 
 public:
-	GameObject(const char* shape, int width, int height) 
-		: height(height), width(width), shape(nullptr), pos(0, 0),
-		screen(Screen::getInstance())
-	{
-		if (!shape || strlen(shape) == 0 || width == 0 || height == 0)
-		{
-			this->shape = new char[1];
-			this->shape[0] = 'x';
-			width = 1;
-			height = 1;
-		} else {
-			this->shape = new char[(width+1)*height];
-			strncpy(this->shape, shape, (width+1)*height);
+	GameObject(const char* shape, int width, int height, const Position& pos = Position{ 0, 0 })
+		: height(height), width(width), shape(nullptr), pos(pos), enabled(true), parent(nullptr),
+		screen(Screen::getInstance()) {
+		if (!shape || strlen(shape) == 0)
+			this->shape = nullptr;
+		else {
+			this->shape = new char[width*height];
+			strncpy(this->shape, shape, width*height);
 		}
-		this->width = width;
-		this->height = height;
+		children.clear();
 	}
-	virtual ~GameObject() {
+
+	GameObject(int width, int height, const Position& pos = Position{ 0, 0 })
+		: GameObject(nullptr, width, height, pos) 
+	{}
+
+	virtual ~GameObject()
+	{
+		while (children.size() > 0) {
+			auto back = children.back();
+			children.pop_back();
+			delete back;
+		}
 		if (shape) { delete[] shape; }
+		shape = nullptr;
 		width = 0, height = 0;
 	}
 
-	void setMine() {
-		srand((unsigned)time(NULL));
-
-		for (int i = 0; i < (width + 1) * height; i++) {
-				shape[i] = '0';
-				if (rand() % 10 == 0) 
-					shape[i] = '*';
-		}
-
-		for (int i = 0; i < height; i++) {
-			shape[(width + 1) * i + width] = '\n';
-		}
-
-		shape[(width + 1) * (height - 1) + width] = '\0';
-
-		for (int i = 0; i < height; i++) {
-			for (int j = 0; j < width; j++) {
-				int pos = (width + 1) * i + j;
-				if (shape[pos] != '*') {
-					int mineNum = 0;	//주변 지뢰숫자를 저장할 변수
-					int x, y, xMax, yMax;
-					//각 모서리일때 예외처리용 변수(상하좌우)
-					if (i == 0) y = 0;	
-					else y = -1;
-					if (j == 0) x = 0;
-					else x = -1;
-					if (i == height - 1) yMax = 1;
-					else yMax = 2;
-					if (j == width - 1) xMax = 1;
-					else xMax = 2;
-					//주변 8칸 확인해서 지뢰가 있을경우 mineNum 1씩 증가
-					//								  -1          0         1
-					//width * y + x + y		====-1 -width-2   -width-1   -width
-					//주변 8칸 정보			==== 0	  -1	      0		    1
-					//						==== 1   width     width+1   width+2
-					for (int h = y; h < yMax; h++) {
-						for (int w = x; w < xMax; w++) {
-							if (shape[pos + (width * h) + w + h] == '*') mineNum++;
-						}
-					}
-
-					shape[pos] = '0' + mineNum;
-				}
-			}
-		}
+	void setParent(GameObject* parent) {
+		this->parent = parent;
 	}
 
-	void setBoard() {
-		for (int i = 0; i < (width + 1) * height; i++) {
-			shape[i] = '+';
-		}
+	void add(GameObject* child) {
+		if (!child) return;
 
-		for (int i = 0; i < height; i++) {
-			shape[(width + 1) * i + width] = '\n';
-		}
-
-		shape[(width + 1) * (height - 1) + width] = '\0';
+		child->setParent(this);
+		children.push_back(child);
 	}
 
-	char* getShape() {
-		return shape;
+	virtual bool isActive() { return enabled;  }
+
+	void setActive(bool flag = true) { enabled = flag;  }
+		
+	void setShape(const char* shape) {
+		if (!shape) return;
+		strncpy(this->shape, shape, width*height);
 	}
 
-	int checkGameover(const char* mine) {
-		bool checkAll = true;
-		for (int i = 0; i < (width + 1) * height; i++) {
-			if (shape[i] == '*')
-				//지뢰가 있으면
-				return 1;
-			if (shape[i] == '+' && mine[i] != '*')
-				checkAll = false;
-		}
+	virtual void setPos(int x, int y) { this->pos.x = x; this->pos.y = y; }
 
-		//다 찾았을시
-		if (checkAll == true)
-			return 2;
+	int getWidth() const { return width; }
+	int getHeight() const { return height;  }
 
-		//지뢰가 없으면
-		return 0;
+	Position& getPos() { return pos; }
+
+	vector<GameObject *>& getChildren() {
+		return children;
+	}
+		
+	void internalDraw(const Position& inheritedPos = Position{ 0, 0 }) {
+		if (!enabled) return;
+
+		draw(inheritedPos);
+
+		for (auto& child : children) child->internalDraw(pos + inheritedPos);
 	}
 
-	void draw() {
-		screen.draw(shape, width+1, height, pos);
+	virtual void draw(const Position& inheritedPos = Position{ 0, 0 }) {
+		screen.draw(shape, width, height, pos + inheritedPos);
+	}
+	
+	void internalUpdate() {
+		if (!enabled) return;
+		update();
+		for (auto& child : children) child->internalUpdate();
+	}
+		
+	virtual void update() {}
+
+	static const char rect = '\xB2';
+};
+
+class Panel : public GameObject {
+	
+public:
+	Panel(const char* layout, int width, int height, const Position& pos) : GameObject(layout, width, height, pos) {}
+
+	GameObject* pop() {
+		auto& children = getChildren();
+		auto back = children.back();
+		children.pop_back();
+		back->setParent(nullptr);
+		return back;
 	}
 
-	virtual void update(Position& pos, char* mine, bool leftClick) {
-		if (leftClick == true) {
-			//width * pos.y + pos.x 배열에서 위치
-			if (mine[(width + 1) * pos.y + pos.x] == '*') {
-				shape[(width + 1) * pos.y + pos.x] = mine[(width + 1) * pos.y + pos.x];
-			}
-			else if (mine[(width + 1) * pos.y + pos.x] > '0' && mine[(width + 1) * pos.y + pos.x] < '9') {
-				shape[(width + 1) * pos.y + pos.x] = mine[(width + 1) * pos.y + pos.x];
-			}
-			else if (mine[(width + 1) * pos.y + pos.x] == '0') {
-				shape[(width + 1) * pos.y + pos.x] = mine[(width + 1) * pos.y + pos.x];
-				//width*(pos.y-1)+(pos.x-1)   width*(pos.y-1)+pox.x   width*(pos.y-1)+(pox.x+1)  
-				//width * pos.y + (pos.x-1)   width * pos.y + pos.x   width * pos.y + (pos.x+1)
-				//width*(pos.y+1)+(pos.x-1)   width*(pos.y-1)+pos.x   width*(pos.y+1)+(pox.x+1)
-				for (int i = -1; i < 2; i++) {
-					for (int j = -1; j < 2; j++) {
-						if (pos.y + i >= 0 && pos.y + i < height && pos.x + j >= 0 && pos.x + j < width) {
-							Position nextPos(pos.x + j, pos.y + i);
-							if (shape[(width + 1) * nextPos.y + nextPos.x] == '+')
-								update(nextPos, mine, true);
-						}
-					}
-				}
-			}
-		}
-
-		//깃발
-		if (leftClick == false) {
-			shape[(width + 1) * pos.y + pos.x] = '=';
-		}
+	void draw(const Position& inheritedPos) {
+		screen.drawRect(Position{ pos.x -1, pos.y -1 } + inheritedPos, getWidth() + 2, getHeight() + 2);
 	}
 };
 
-int main()
-{
-	char mine[110];
-	char board[110];
-	int gameover = 0;
-	GameObject playerBoard(board, 10, 10);
-	GameObject mineBoard(mine, 10, 10);
-	Screen&	 screen = Screen::getInstance();
-	INPUT_RECORD InputRecord;
-	DWORD Events;
+class Text : public Panel {
 
-	playerBoard.setBoard();
-	mineBoard.setMine();
+public:
+	Text(const char* info, const Position& pos) : Panel(info, strlen(info), 1, pos) {}
 
-	while (true)
-	{
-		playerBoard.draw();
-		screen.render();	
+	void draw(const Position& inheritedPos) {
+		screen.draw(shape, width, 1, pos + inheritedPos);
+	}
+};
 
-		printf("\n LeftClick: check, RightClick: flag");
-		gameover = playerBoard.checkGameover(mineBoard.getShape());
-		if (gameover == 1)
-		{
-			printf("\n===GameOver!===\n");
-			break;
-		}
+class Score : public Text {
+	int score;
+	char* buf;
 
-		else if (gameover == 2)
-		{
-			printf("\n===Clear!===\n");
-			break;
-		}
-
-		Sleep(30);
-		
-		ReadConsoleInput(GetStdHandle(STD_INPUT_HANDLE), &InputRecord, 1, &Events);
-		if (InputRecord.EventType == MOUSE_EVENT) {
-			if (InputRecord.Event.MouseEvent.dwButtonState == FROM_LEFT_1ST_BUTTON_PRESSED) {
-				Position pos;
-				pos.x = InputRecord.Event.MouseEvent.dwMousePosition.X;
-				pos.y = InputRecord.Event.MouseEvent.dwMousePosition.Y;
-
-				playerBoard.update(pos, mineBoard.getShape(), true);
-			}
-			if (InputRecord.Event.MouseEvent.dwButtonState & RIGHTMOST_BUTTON_PRESSED) {
-				Position pos;
-				pos.x = InputRecord.Event.MouseEvent.dwMousePosition.X;
-				pos.y = InputRecord.Event.MouseEvent.dwMousePosition.Y;
-
-				playerBoard.update(pos, mineBoard.getShape(), false);
-			}
-		}
-		screen.clear();
+public:
+	Score(const Position& pos) : Text("Score :     ", pos), score(0) {
+		buf = new char[strlen(shape) + 1];
 	}
 
+	~Score() {
+		delete[] buf;
+	}
+
+	void addScore(int inc) {
+		if (inc < 0) return;
+		score += inc;
+	}
+
+	void draw(const Position& inheritedPos) {
+		sprintf(buf, "Score: %3d", score);
+		screen.draw(buf, strlen(buf), 1, pos + inheritedPos);
+	}
+};
+
+class Map : public Panel {
+	bool* map;
+	int   width;
+	int	  height;
+	int   upper;
+	char*  buffer;
+	//Score* score;
+
+public:
+	Map(int width, int height, const Position& pos)
+		: map(new bool[width*height]), width(width), height(height), upper(height - 1), buffer(new char[width*height]),
+		Panel(nullptr, width, height, pos)/*, score(nullptr)*/
+	{
+		for (int i = 0; i < width*height; i++) {
+			map[i] = false;
+			buffer[i] = '\xB2';
+		}
+	}
+
+	~Map() { if (map) delete[] map; }
+	
+	/*void setScore(Score* score) {
+		this->score = score;
+	}*/
+
+	/*void addScore(int score) {
+		if (this->score) this->score->addScore(score);
+	}*/
+
+	//bool isLineAllOccupied(int line) {
+	//	for (int i = 0; i < width; i++) {
+	//		if (!map[line*width + i]) {
+	//			return false;
+	//		}
+	//	}
+	//	return true;
+	//}
+
+	//bool evaluateLine(int line) {
+	//	if (!isLineAllOccupied(line)) return false;
+
+	//	// clean the given line
+	//	for (int i = 0; i < width; i++) map[line*width + i] = false;
+
+	//	// copy lines above the "line" down below their below lines.
+	//	for (int i = line - 1; i >= (upper-1) && i >= 0; i--) {
+	//		for (int j = 0; j < width; j++) 
+	//			map[(i + 1)*width + j] = map[i*width + j];
+	//		if (i==0) for (int i = 0; i < width; i++) 
+	//			map[line*width + i] = false;
+	//	}
+	//	upper++;
+	//	return true;
+	//}
+
+	//bool isGrounded(const char* shape, const Position& pos, int w, int h) {
+	//	if (pos.y + h >= height) return true;
+
+	//	// pos.y + h < height
+	//	int next = pos.y + h;
+	//	if (next < upper) return false;
+	//	for (int i = 0; i < h; ++i) {
+	//		for (int j = 0; j < w; j++)
+	//			if (map[pos.x + j + (pos.y + i + 1) * width] && shape[j + i*w] != ' ')
+	//				return true;
+	//	}
+	//	return false;
+	//}
+
+	//bool isOccupied(const Position& pos) {
+	//	return map[pos.x + pos.y *width];
+	//}
+
+	//void place(const char* shape, const Position& pos, int w, int h) {
+	//	for (int i = 0; i < h; i++) {
+	//		for (int j = 0; j < w; j++) {
+	//			if (shape[j + i*w] != ' ')
+	//				map[pos.x + j + (pos.y + i)* width] = true;
+	//		}
+	//	}
+	//	if (pos.y < upper) upper = pos.y;
+	//	addScore(1);
+	//}*/
+
+	bool getItem(Position pos) {
+		return !map[pos.x + pos.y * width];	//아직 안먹은 아이템이면 true
+	}
+
+	void changeItem(Position pos) {
+		if (map[pos.x + pos.y * width] == true) return;
+
+		map[pos.x + pos.y * width] = true;
+	}
+
+	void draw(const Position& inheritedPos)
+	{
+		screen.drawRect(Position{ pos.x - 1, pos.y -1 } + inheritedPos, width+2, height+2);
+		for (int i = 0; i < width * height; i++) {
+			if (map[i] == true)
+				buffer[i] = ' ';
+		}
+
+		screen.draw(buffer, width, height, Position{ pos.x, pos.y});
+		/*for (int i = upper; i < height; i++) {
+			memset(buffer, ' ', 100);
+			buffer[width] = '\0';
+			for (int j = 0; j < width; j++) {
+				if (map[j + i * width]) buffer[j] = GameObject::rect;
+			}
+			screen.draw(buffer, width, 1, Position{ pos.x, pos.y+ i } + inheritedPos);
+		}*/
+	}
+};
+
+class Monster : public GameObject {
+	Map* map;
+	Score* score;
+public:
+	Monster(const char* shape, Position pos) : map(nullptr), score(nullptr), GameObject(shape, 1, 1, pos) {
+		if (!shape || strlen(shape) == 0)
+			this->shape = nullptr;
+		else {
+			this->shape = new char[width*height];
+			strncpy(this->shape, shape, width*height);
+		}
+	}
+
+	void setScore(Score* score) {
+		this->score = score;
+	}
+
+	void setPos(int x, int y) {
+		GameObject::setPos(x, y);
+	}
+		
+	void setMap(Map* map) {
+		this->map = map;
+	}
+
+	void update() {
+		if (isActive() == false) return;
+		
+		int moveX = rand() % 3 - 1;
+		int moveY = rand() % 3 - 1;
+
+		if (pos.x == 1 && moveX < 0) {
+			moveX = 0;
+		}
+
+		if (pos.x == map->getWidth() - 1 && moveX > 0) {
+			moveX = 0;
+		}
+
+		if (pos.y == 1 && moveY < 0) {
+			moveY = 0;
+		}
+
+		if (pos.y == map->getHeight() - 1 && moveY > 0) {
+			moveY = 0;
+		}
+
+		setPos(pos.x + moveX, pos.y + moveY);
+		if (map->getItem(pos)) {
+			map->changeItem(pos);
+			score->addScore(1);
+		}
+	}
+
+	void draw() {
+		screen.draw(shape, width, height, pos);
+	}
+};
+
+//struct BlockShape {
+//	string shape;
+//	int width;
+//	int height;
+//};
+//
+//class Block : public GameObject {
+//	float x;
+//	float y;
+//	float speed;
+//	bool interactable;
+//	Map* map;
+//
+//public:
+//	Block(const BlockShape& shape, bool interactable = true, const Position& pos = Position{ 0, 0 })
+//		: GameObject(shape.shape.c_str(), shape.width, shape.height, pos), x(.0f), y(.0f), speed(0.02f), interactable(interactable), map(nullptr)
+//	{ }
+//
+//	void rotateShape() {
+//		static char* shape = new char[GameObject::width*GameObject::height];
+//		for (int y = 0; y < height; y++)
+//			for (int x = 0; x < width; x++)
+//				shape[(GameObject::width-1-x)*GameObject::height+y] = this->shape[y*GameObject::width + x];
+//		setShape(shape);
+//		swap(GameObject::width, GameObject::height);
+//	}
+//
+//	void setInteractable() { interactable = true;  }
+//
+//	void setPos(int x, int y) {
+//		GameObject::setPos(x, y);
+//	}
+//
+//	void setMap(Map* map) {
+//		this->map = map;
+//	}
+//
+//	void update() {
+//		static vector<int> comboBonus { 0, 40, 100, 300, 1200 };
+//		if (isActive() == false) return;
+//		if (!interactable || !map) return;
+//
+//		if (map->isGrounded(shape, pos, width, height)) {
+//			map->place(shape, pos, width, height);
+//			for (int i = height - 1; i >= 0; --i) {
+//				int nCombos = 0;
+//				while (map->evaluateLine(pos.y + i)) {
+//					nCombos++;
+//				}
+//				if (nCombos < comboBonus.size())
+//					map->addScore( comboBonus[nCombos] );
+//			}
+//			setActive(false);
+//			return;
+//		}		
+//
+//		if (Input::GetKeyDown(KeyCode::Right)) {
+//			x++;
+//			if (parent) {
+//				if (x + width >= parent->getWidth()) x = parent->getWidth() - width;
+//			}
+//			else {
+//				if (x + width >= screen.getWidth()/2) x = screen.getWidth() - width;
+//			}
+//		}
+//		if (Input::GetKeyDown(KeyCode::Left)) {
+//			x--;
+//			if (x < 0.0f) x = 0.0f;
+//		}
+//		if (Input::GetKeyDown(KeyCode::Up)) {
+//			rotateShape();
+//		}
+//		if (Input::GetKeyDown(KeyCode::Down)) {
+//			speed *= 2;
+//		}			
+//		if (Input::GetKeyDown(KeyCode::Space)) {
+//			if (map) {
+//				pos.y = y;
+//				while (!map->isGrounded(shape, pos, width, height)) {
+//					pos.y++; y+= 1.0f;
+//				}
+//				return;
+//			}
+//		}
+//		if (Input::GetKeyDown(KeyCode::A)) {
+//			rotateShape();
+//		}
+//		y += speed;
+//	}
+//
+//	void draw(const Position& inheritedPos) {
+//		
+//		if (interactable == true) {
+//			pos.x = (int)x, pos.y = (int)y;
+//		}
+//
+//		for (int i = pos.y + 1; map && i < map->getHeight(); i++) {
+//			if ( map->isOccupied(Position{pos.x, i}))
+//				break;
+//			screen.draw("\xFA", 1, 1, Position{ pos.x, i } + inheritedPos);
+//		}
+//		for (int i = pos.y + 1; map && i < map->getHeight(); i++) {
+//			if (map->isOccupied(Position{ pos.x + width - 1, i }))
+//				break;
+//			screen.draw("\xFA", 1, 1, Position{ pos.x + width - 1, i } +inheritedPos);
+//		}
+//		screen.draw(shape, width, height, pos + inheritedPos);
+//	}
+//};
+
+int main()
+{
+	/*vector<BlockShape> candidates{
+		{ "\xB2\xB2 \xB2 \xB2", 2, 3},
+		{ "\xB2\xB2\xB2\xB2",	2, 2},
+		{ "\xB2\xB2\xB2\xB2",	4, 1},
+		{ "\xB2\xB2\xB2 \xB2 ", 2, 3},
+		{ " \xB2\xB2\xB2\xB2 ", 2, 3},
+		{ " \xB2\xB2\xB2 \xB2", 2, 3},
+		{ "\xB2 \xB2\xB2 \xB2", 2, 3}
+	};*/
+	srand((unsigned int)time(NULL));
+	Screen&	 screen = Screen::getInstance();
+	vector<GameObject *> gameObjects;
+
+	string mode = "mode con cols=" + to_string(screen.getWidth() + 10);
+	mode += " lines=" + to_string(screen.getHeight() + 5);
+
+	std::system(mode.c_str());
+	std::system("chcp 437");	
+
+	//auto candidate = candidates[rand() % candidates.size()];
+	//auto next = candidates[rand() % candidates.size()];
+		
+	auto main = new Map( 25, 10, Position{ 1, 1 });
+	auto& children = main->getChildren();	
+
+	//auto monster1 = new Monster("D", Position(rand() % (main->getWidth()-1) + 1, rand() % (main->getHeight()-1) + 1));
+	main->add(new Monster("A", Position(rand() % (main->getWidth() - 1) + 1, rand() % (main->getHeight() - 1) + 1)));
+	static_cast<Monster *>(children[0])->setMap(main);
+	main->add(new Monster("B", Position(rand() % (main->getWidth() - 1) + 1, rand() % (main->getHeight() - 1) + 1)));
+	static_cast<Monster *>(children[1])->setMap(main);
+	main->add(new Monster("C", Position(rand() % (main->getWidth() - 1) + 1, rand() % (main->getHeight() - 1) + 1)));
+	static_cast<Monster *>(children[2])->setMap(main);
+
+	auto nextPanel = new Panel(nullptr, screen.getWidth() / 2-2, 10, Position{ screen.getWidth() / 2 - 12, 1 });
+	nextPanel->add(new Text("A", Position{ 2, 2 }));
+	nextPanel->add(new Text("B", Position{ 2, 4 }));
+	nextPanel->add(new Text("C", Position{ 2, 6 }));
+	auto scoreA = new Score(Position{ 4, 2 });
+	static_cast<Monster *>(children[0])->setScore(scoreA);
+	auto scoreB = new Score(Position{ 4, 4 });
+	static_cast<Monster *>(children[1])->setScore(scoreB);
+	auto scoreC = new Score(Position{ 4, 6 });
+	static_cast<Monster *>(children[2])->setScore(scoreC);
+	nextPanel->add(scoreA);
+	nextPanel->add(scoreB);
+	nextPanel->add(scoreC);
+	//nextPanel->add(new Block(next, false, Position{ nextPanel->getWidth()/2 - 2, nextPanel->getHeight()/2-1}) );
+
+	//main->setScore(score);
+
+	gameObjects.push_back(main);
+	//gameObjects.push_back(monster1);
+	gameObjects.push_back(nextPanel);
+
+	screen.clear(); screen.render();
+	
+	while (!Input::GetKeyDown(KeyCode::Esc)) {
+		screen.clear();
+		for (auto obj : gameObjects) obj->internalUpdate();
+
+		/*bool needANewBlock = false;
+		for (auto it = children.begin(); it != children.end(); ) {
+			auto child = *it;
+			if (child->isActive()) {
+				it++;
+				continue;
+			}
+			it = children.erase(it);
+			needANewBlock = true;
+		}*/
+		/*if (needANewBlock) {
+			auto nextBlock = static_cast<Block *>(nextPanel->pop());
+			nextBlock->setInteractable();
+			nextBlock->setMap(main);
+			nextBlock->setPos(main->getWidth() / 2 - 4, 0);
+			main->add(nextBlock);
+			next = candidates[rand() % candidates.size()];
+			nextPanel->add(new Block(next, false, Position{ nextPanel->getWidth() / 2 - 2, 3 }));
+		}*/
+		
+		for (auto it = gameObjects.cbegin(); 
+			it != gameObjects.cend(); it++)
+			(*it)->internalDraw();
+				
+		screen.render();		
+		Sleep(123);		
+
+		Input::EndOfFrame();		
+	}
+	
+	while (gameObjects.size() > 0) {
+		auto back = gameObjects.back();
+		gameObjects.pop_back();
+		delete back;
+	}
+	
 	return 0;
 }
